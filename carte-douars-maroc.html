@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carte des Douars du Maroc - Analyse Démographique</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            border-bottom: 3px solid #3b82f6;
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(59,130,246,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        h1 {
+            font-size: 3.2em;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .subtitle {
+            font-size: 1.3em;
+            color: #cbd5e1;
+            font-weight: 300;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2.5rem;
+            padding: 2.5rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .map-section, .stats-section {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .map-section::before, .stats-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b);
+        }
+
+        .section-title {
+            color: #60a5fa;
+            margin-bottom: 1.8rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .section-title i {
+            font-size: 1.3em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 25px;
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 15px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.5);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        #map-container {
+            width: 100%;
+            height: 550px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            box-shadow: inset 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            background: rgba(30, 41, 59, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            min-width: 220px;
+        }
+
+        .legend h3 {
+            margin-bottom: 15px;
+            color: #60a5fa;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 10px 0;
+            font-size: 0.9em;
+            padding: 5px 0;
+        }
+
+        .legend-color {
+            width: 25px;
+            height: 25px;
+            border-radius: 6px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #334155 0%, #475569 100%);
+            color: white;
+            padding: 1.8rem;
+            border-radius: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(59, 130, 246, 0.4);
+            border-color: #3b82f6;
+        }
+
+        .stat-card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+            font-weight: 500;
+            color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .stat-value {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: #60a5fa;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .demographics-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+            margin-top: 1.5rem;
+        }
+
+        .demographic-tag {
+            background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%);
+            color: white;
+            padding: 0.7rem 1.2rem;
+            border-radius: 25px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .demographic-tag:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(30, 64, 175, 0.4);
+        }
+
+        .charts {
+            margin-top: 2.5rem;
+        }
+
+        .chart-container {
+            background: rgba(30, 41, 59, 0.6);
+            padding: 1.8rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .chart-container h4 {
+            color: #60a5fa;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        #region-title {
+            color: #60a5fa;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .instructions {
+            background: rgba(51, 65, 85, 0.6);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-top: 2rem;
+            border-left: 5px solid #3b82f6;
+            font-size: 0.95rem;
+            color: #cbd5e1;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .instructions p {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2.5rem;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            margin-top: 4rem;
+            border-top: 1px solid #334155;
+            position: relative;
+        }
+
+        footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+        }
+
+        /* Styles pour la carte D3 */
+        .region {
+            fill: #8B4513;
+            stroke: #fff;
+            stroke-width: 1px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .region:hover {
+            fill: #A0522D;
+            stroke-width: 2px;
+            filter: brightness(1.2);
+        }
+
+        .region-marker {
+            fill: #dc2626;
+            stroke: white;
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .region-marker:hover {
+            r: 12;
+            stroke-width: 3px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+        }
+
+        .region-label {
+            font-size: 11px;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: 600;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(30, 41, 59, 0.98);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            z-index: 1000;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            line-height: 1.5;
+        }
+
+        .tooltip div {
+            margin: 3px 0;
+        }
+
+        .tooltip strong {
+            color: #60a5fa;
+            font-size: 1.1em;
+        }
+
+        /* Animation de chargement */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .map-section, .stats-section {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .stat-card {
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @media (max-width: 968px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 1.5rem;
+                gap: 2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-row {
+                grid-template-columns: 1fr;
+            }
+            
+            #map-container {
+                height: 450px;
+            }
+            
+            h1 {
+                font-size: 2.5em;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+        }
+
+        /* Scrollbar personnalisée */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-map-marked-alt"></i> Carte Interactive des Douars du Maroc</h1>
+        <p class="subtitle">Analyse Démographique Détaillée des Régions et Douars Marocains</p>
+    </div>
+
+    <div class="container">
+        <div class="map-section">
+            <h2 class="section-title"><i class="fas fa-map"></i> Carte des Régions du Maroc</h2>
+            
+            <div class="controls">
+                <button class="btn btn-primary" onclick="resetView()">
+                    <i class="fas fa-sync-alt"></i> Vue Initiale
+                </button>
+                <button class="btn btn-secondary" onclick="showAllRegions()">
+                    <i class="fas fa-expand"></i> Afficher Toutes les Régions
+                </button>
+            </div>
+
+            <div style="position: relative;">
+                <div id="map-container">
+                    <svg id="map"></svg>
+                </div>
+                <div class="legend">
+                    <h3><i class="fas fa-layer-group"></i> Légende Démographique</h3>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #dc2626;"></div>
+                        <span>Population > 2M</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #2563eb;"></div>
+                        <span>Population 1M-2M</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #10b981;"></div>
+                        <span>Population 500K-1M</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f59e0b;"></div>
+                        <span>Population 100K-500K</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #8b5cf6;"></div>
+                        <span>Population < 100K</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instructions">
+                <p><i class="fas fa-lightbulb"></i> <strong>Comment utiliser :</strong> Cliquez sur les points colorés des régions pour afficher leurs statistiques démographiques détaillées.</p>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <h2 id="region-title" class="section-title"><i class="fas fa-chart-bar"></i> Statistiques Démographiques</h2>
+            <div id="statistics" class="hidden">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3><i class="fas fa-village"></i> Nombre de Douars</h3>
+                        <div class="stat-value" id="nb-douars">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i class="fas fa-users"></i> Population Totale</h3>
+                        <div class="stat-value" id="pop-totale">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i class="fas fa-home"></i> Nombre de Ménages</h3>
+                        <div class="stat-value" id="nb-menages">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i class="fas fa-chart-line"></i> Densité (hab/douar)</h3>
+                        <div class="stat-value" id="densite">0</div>
+                    </div>
+                </div>
+
+                <div class="demographics">
+                    <h3 class="section-title"><i class="fas fa-chart-pie"></i> Caractéristiques Démographiques</h3>
+                    <div class="demographics-list" id="demographics-list">
+                        <!-- Les caractéristiques seront ajoutées ici -->
+                    </div>
+                </div>
+
+                <div class="charts">
+                    <h3 class="section-title"><i class="fas fa-chart-area"></i> Visualisations des Données</h3>
+                    <div class="chart-container">
+                        <h4><i class="fas fa-child"></i> Répartition par Âge</h4>
+                        <canvas id="ageChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h4><i class="fas fa-venus-mars"></i> Répartition Hommes/Femmes</h4>
+                            <canvas id="genderChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h4><i class="fas fa-heart"></i> État Civil</h4>
+                            <canvas id="civilChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="initial-message" class="instructions">
+                <p><i class="fas fa-mouse-pointer"></i> Veuillez sélectionner une région sur la carte pour afficher ses statistiques démographiques.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p><i class="fas fa-database"></i> Projet d'Analyse des Données Démographiques - Carte Interactive des Douars du Maroc © 2024</p>
+    </footer>
+
+    <script>
+        // Données des douars par région
+        const regionsData = [
+            {
+                "region_ar": "الداخلة-وادي الذهب",
+                "region_fr": "Dakhla-Oued Ed-Dahab",
+                "nb_douars": 30,
+                "nb_menages": 6532.0,
+                "pop_totale": 16690.0,
+                "nb_etrangers": 262.872,
+                "nb_marocains": 16427.128,
+                "part_etrangers": 0.0157502696,
+                "age_0_15": 302.0,
+                "age_15_59": 15734.0,
+                "age_60_plus": 464.0,
+                "part_0_15": 0.0180946675,
+                "part_15_59": 0.9427201917,
+                "part_60_plus": 0.0278010785,
+                "nb_hommes": 15860.0,
+                "nb_femmes": 640.0,
+                "ratio_h_f": 24.78125,
+                "nb_enreg_civ": 16407.844,
+                "taux_enreg_civ": 0.983094308,
+                "nb_15p": 16198.0,
+                "nb_15p_celib": 8263.0,
+                "nb_15p_marie": 7392.0,
+                "nb_15p_div": 493.0,
+                "nb_15p_veuf": 50.0,
+                "part_celib": 0.5101247068,
+                "part_marie": 0.4563526361,
+                "lat": 23.7140,
+                "lng": -15.9360
+            },
+            {
+                "region_ar": "الدار البيضاء-سطات",
+                "region_fr": "Casablanca-Settat",
+                "nb_douars": 2759,
+                "nb_menages": 466310.0,
+                "pop_totale": 2045890.0,
+                "nb_etrangers": 804.068,
+                "nb_marocains": 2045085.932,
+                "part_etrangers": 0.0003930162,
+                "age_0_15": 602899.0,
+                "age_15_59": 1146868.0,
+                "age_60_plus": 251571.0,
+                "part_0_15": 0.2946878864,
+                "part_15_59": 0.5605716827,
+                "part_60_plus": 0.122964089,
+                "nb_hommes": 1027612.0,
+                "nb_femmes": 973726.0,
+                "ratio_h_f": 1.0553400032,
+                "nb_enreg_civ": 1987596.7350000001,
+                "taux_enreg_civ": 0.9715071363,
+                "nb_15p": 1398439.0,
+                "nb_15p_celib": 416124.0,
+                "nb_15p_marie": 881561.0,
+                "nb_15p_div": 29837.0,
+                "nb_15p_veuf": 70917.0,
+                "part_celib": 0.2975632116,
+                "part_marie": 0.6303893127,
+                "lat": 33.5731,
+                "lng": -7.5898
+            },
+            {
+                "region_ar": "الرباط-سلا-القنيطرة",
+                "region_fr": "Rabat-Salé-Kénitra",
+                "nb_douars": 1920,
+                "nb_menages": 316808.0,
+                "pop_totale": 1496368.0,
+                "nb_etrangers": 343.572,
+                "nb_marocains": 1496024.4280000001,
+                "part_etrangers": 0.0002296039,
+                "age_0_15": 455415.0,
+                "age_15_59": 845212.0,
+                "age_60_plus": 167877.0,
+                "part_0_15": 0.3043469254,
+                "part_15_59": 0.5648423382,
+                "part_60_plus": 0.1121896485,
+                "nb_hommes": 752174.0,
+                "nb_femmes": 716330.0,
+                "ratio_h_f": 1.0500383901,
+                "nb_enreg_civ": 1452115.5930000001,
+                "taux_enreg_civ": 0.9704267887,
+                "nb_15p": 1013089.0,
+                "nb_15p_celib": 301695.0,
+                "nb_15p_marie": 637622.0,
+                "nb_15p_div": 26358.0,
+                "nb_15p_veuf": 47414.0,
+                "part_celib": 0.2977971333,
+                "part_marie": 0.6293839929,
+                "lat": 34.0209,
+                "lng": -6.8416
+            },
+            {
+                "region_ar": "الشرقية",
+                "region_fr": "Oriental",
+                "nb_douars": 1947,
+                "nb_menages": 184683.0,
+                "pop_totale": 777608.0,
+                "nb_etrangers": 210.268,
+                "nb_marocains": 777397.732,
+                "part_etrangers": 0.0002704036,
+                "age_0_15": 202644.0,
+                "age_15_59": 418959.0,
+                "age_60_plus": 108702.0,
+                "part_0_15": 0.2605991708,
+                "part_15_59": 0.5387791792,
+                "part_60_plus": 0.1397902285,
+                "nb_hommes": 362017.0,
+                "nb_femmes": 368288.0,
+                "ratio_h_f": 0.9829725649,
+                "nb_enreg_civ": 725804.718,
+                "taux_enreg_civ": 0.9333812384,
+                "nb_15p": 527661.0,
+                "nb_15p_celib": 179849.0,
+                "nb_15p_marie": 309809.0,
+                "nb_15p_div": 11248.0,
+                "nb_15p_veuf": 26755.0,
+                "part_celib": 0.3408419421,
+                "part_marie": 0.587136438,
+                "lat": 34.6814,
+                "lng": -1.9086
+            },
+            {
+                "region_ar": "العيون الساقية الحمراء",
+                "region_fr": "Laâyoune-Sakia El Hamra",
+                "nb_douars": 28,
+                "nb_menages": 3836.0,
+                "pop_totale": 11288.0,
+                "nb_etrangers": 59.828,
+                "nb_marocains": 11228.172,
+                "part_etrangers": 0.0053001417,
+                "age_0_15": 2503.0,
+                "age_15_59": 7047.0,
+                "age_60_plus": 1604.0,
+                "part_0_15": 0.2217399008,
+                "part_15_59": 0.6242912828,
+                "part_60_plus": 0.142097803,
+                "nb_hommes": 6439.0,
+                "nb_femmes": 4715.0,
+                "ratio_h_f": 1.3656415695,
+                "nb_enreg_civ": 11106.53,
+                "taux_enreg_civ": 0.9839236357,
+                "nb_15p": 8651.0,
+                "nb_15p_celib": 2943.0,
+                "nb_15p_marie": 4946.0,
+                "nb_15p_div": 376.0,
+                "nb_15p_veuf": 386.0,
+                "part_celib": 0.3401918853,
+                "part_marie": 0.571725812,
+                "lat": 27.1530,
+                "lng": -13.1990
+            },
+            {
+                "region_ar": "بني ملال-خنيفرة",
+                "region_fr": "Béni Mellal-Khénifra",
+                "nb_douars": 2158,
+                "nb_menages": 277894.0,
+                "pop_totale": 1235741.0,
+                "nb_etrangers": 78.194,
+                "nb_marocains": 1235662.8060000001,
+                "part_etrangers": 0.000063277,
+                "age_0_15": 348250.0,
+                "age_15_59": 671437.0,
+                "age_60_plus": 173957.0,
+                "part_0_15": 0.2818147168,
+                "part_15_59": 0.5433476756,
+                "part_60_plus": 0.1407714076,
+                "nb_hommes": 594790.0,
+                "nb_femmes": 598854.0,
+                "ratio_h_f": 0.9932137048,
+                "nb_enreg_civ": 1185472.1170000001,
+                "taux_enreg_civ": 0.9593208585,
+                "nb_15p": 845394.0,
+                "nb_15p_celib": 245812.0,
+                "nb_15p_marie": 526471.0,
+                "nb_15p_div": 22255.0,
+                "nb_15p_veuf": 50856.0,
+                "part_celib": 0.290766199,
+                "part_marie": 0.6227522315,
+                "lat": 32.3373,
+                "lng": -6.3498
+            },
+            {
+                "region_ar": "درعة تافيلالت",
+                "region_fr": "Drâa-Tafilalet",
+                "nb_douars": 2088,
+                "nb_menages": 197868.0,
+                "pop_totale": 1035265.0,
+                "nb_etrangers": 151.013,
+                "nb_marocains": 1035113.987,
+                "part_etrangers": 0.0001458689,
+                "age_0_15": 308476.0,
+                "age_15_59": 545438.0,
+                "age_60_plus": 130269.0,
+                "part_0_15": 0.2979681531,
+                "part_15_59": 0.5268583406,
+                "part_60_plus": 0.1258315504,
+                "nb_hommes": 485257.0,
+                "nb_femmes": 498926.0,
+                "ratio_h_f": 0.9726031516,
+                "nb_enreg_civ": 978881.532,
+                "taux_enreg_civ": 0.9455371639,
+                "nb_15p": 675707.0,
+                "nb_15p_celib": 221179.0,
+                "nb_15p_marie": 399621.0,
+                "nb_15p_div": 18274.0,
+                "nb_15p_veuf": 36633.0,
+                "part_celib": 0.327329745,
+                "part_marie": 0.5914116622,
+                "lat": 31.5131,
+                "lng": -5.5328
+            },
+            {
+                "region_ar": "سوس-ماسة",
+                "region_fr": "Souss-Massa",
+                "nb_douars": 4657,
+                "nb_menages": 308262.0,
+                "pop_totale": 1196727.0,
+                "nb_etrangers": 2179.199,
+                "nb_marocains": 1194547.801,
+                "part_etrangers": 0.0018209659,
+                "age_0_15": 284808.0,
+                "age_15_59": 614299.0,
+                "age_60_plus": 152973.0,
+                "part_0_15": 0.2379891153,
+                "part_15_59": 0.5133159025,
+                "part_60_plus": 0.1278261458,
+                "nb_hommes": 521348.0,
+                "nb_femmes": 530732.0,
+                "ratio_h_f": 0.9823187598,
+                "nb_enreg_civ": 1046101.689,
+                "taux_enreg_civ": 0.8741356124,
+                "nb_15p": 767272.0,
+                "nb_15p_celib": 237412.0,
+                "nb_15p_marie": 471288.0,
+                "nb_15p_div": 15724.0,
+                "nb_15p_veuf": 42848.0,
+                "part_celib": 0.309423516,
+                "part_marie": 0.6142384969,
+                "lat": 30.4278,
+                "lng": -9.5981
+            },
+            {
+                "region_ar": "طنجة تطوان الحسيمة",
+                "region_fr": "Tanger-Tétouan-Al Hoceïma",
+                "nb_douars": 2739,
+                "nb_menages": 320093.0,
+                "pop_totale": 1382463.0,
+                "nb_etrangers": 223.952,
+                "nb_marocains": 1382239.048,
+                "part_etrangers": 0.0001619949,
+                "age_0_15": 391270.0,
+                "age_15_59": 784139.0,
+                "age_60_plus": 159477.0,
+                "part_0_15": 0.2830238495,
+                "part_15_59": 0.5672043302,
+                "part_60_plus": 0.115357156,
+                "nb_hommes": 692582.0,
+                "nb_femmes": 642304.0,
+                "ratio_h_f": 1.0782775757,
+                "nb_enreg_civ": 1325352.7409999999,
+                "taux_enreg_civ": 0.9586894846,
+                "nb_15p": 943616.0,
+                "nb_15p_celib": 334097.0,
+                "nb_15p_marie": 554967.0,
+                "nb_15p_div": 13692.0,
+                "nb_15p_veuf": 40860.0,
+                "part_celib": 0.3540603381,
+                "part_marie": 0.5881280097,
+                "lat": 35.7595,
+                "lng": -5.8340
+            },
+            {
+                "region_ar": "فاس-مكناس",
+                "region_fr": "Fès-Meknès",
+                "nb_douars": 3749,
+                "nb_menages": 379908.0,
+                "pop_totale": 1604546.0,
+                "nb_etrangers": 199.154,
+                "nb_marocains": 1604346.8459999999,
+                "part_etrangers": 0.0001241186,
+                "age_0_15": 441963.0,
+                "age_15_59": 867539.0,
+                "age_60_plus": 214680.0,
+                "part_0_15": 0.275444269,
+                "part_15_59": 0.5406756802,
+                "part_60_plus": 0.1337948554,
+                "nb_hommes": 774864.0,
+                "nb_femmes": 749318.0,
+                "ratio_h_f": 1.0340923346,
+                "nb_enreg_civ": 1513528.5919999999,
+                "taux_enreg_civ": 0.9432752891,
+                "nb_15p": 1082219.0,
+                "nb_15p_celib": 331010.0,
+                "nb_15p_marie": 674769.0,
+                "nb_15p_div": 22356.0,
+                "nb_15p_veuf": 54084.0,
+                "part_celib": 0.305862307,
+                "part_marie": 0.6235050392,
+                "lat": 34.0181,
+                "lng": -5.0078
+            },
+            {
+                "region_ar": "كلميم وادي نون",
+                "region_fr": "Guelmim-Oued Noun",
+                "nb_douars": 1270,
+                "nb_menages": 30985.0,
+                "pop_totale": 119158.0,
+                "nb_etrangers": 46.683,
+                "nb_marocains": 119111.317,
+                "part_etrangers": 0.0003917739,
+                "age_0_15": 19212.0,
+                "age_15_59": 41957.0,
+                "age_60_plus": 13869.0,
+                "part_0_15": 0.1612313063,
+                "part_15_59": 0.3521123215,
+                "part_60_plus": 0.1163916816,
+                "nb_hommes": 36405.0,
+                "nb_femmes": 38633.0,
+                "ratio_h_f": 0.9423290969,
+                "nb_enreg_civ": 74661.998,
+                "taux_enreg_civ": 0.6265798184,
+                "nb_15p": 55826.0,
+                "nb_15p_celib": 17802.0,
+                "nb_15p_marie": 32494.0,
+                "nb_15p_div": 1593.0,
+                "nb_15p_veuf": 3937.0,
+                "part_celib": 0.3188836743,
+                "part_marie": 0.582058539,
+                "lat": 28.9833,
+                "lng": -10.0667
+            },
+            {
+                "region_ar": "مراكش-أسفي",
+                "region_fr": "Marrakech-Safi",
+                "nb_douars": 5620,
+                "nb_menages": 604267.0,
+                "pop_totale": 2629485.0,
+                "nb_etrangers": 2108.861,
+                "nb_marocains": 2627376.139,
+                "part_etrangers": 0.0008020053,
+                "age_0_15": 766335.0,
+                "age_15_59": 1420815.0,
+                "age_60_plus": 328357.0,
+                "part_0_15": 0.2914391982,
+                "part_15_59": 0.5403396483,
+                "part_60_plus": 0.1248750231,
+                "nb_hommes": 1296567.0,
+                "nb_femmes": 1218940.0,
+                "ratio_h_f": 1.0636840205,
+                "nb_enreg_civ": 2495793.5619999999,
+                "taux_enreg_civ": 0.9491567976,
+                "nb_15p": 1749172.0,
+                "nb_15p_celib": 520636.0,
+                "nb_15p_marie": 1105687.0,
+                "nb_15p_div": 30966.0,
+                "nb_15p_veuf": 91883.0,
+                "part_celib": 0.2976471153,
+                "part_marie": 0.632120226,
+                "lat": 31.6295,
+                "lng": -7.9811
+            }
+        ];
+
+        // Variables globales pour D3
+        let svg, projection, path, g, tooltip;
+        let currentChart = null;
+        let genderChart = null;
+        let civilChart = null;
+        let zoom;
+
+        // Initialiser la carte D3
+        function initMap() {
+            const width = document.getElementById('map-container').clientWidth;
+            const height = document.getElementById('map-container').clientHeight;
+
+            svg = d3.select('#map')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Créer un groupe pour la carte
+            g = svg.append('g');
+
+            // Configuration de la projection
+            projection = d3.geoMercator()
+                .center([-7, 31.5])
+                .scale(2000)
+                .translate([width / 2, height / 2]);
+
+            path = d3.geoPath().projection(projection);
+
+            // Créer le zoom
+            zoom = d3.zoom()
+                .scaleExtent([1, 8])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+
+            svg.call(zoom);
+
+            // Créer l'infobulle
+            tooltip = d3.select('body').append('div')
+                .attr('class', 'tooltip')
+                .style('opacity', 0);
+
+            // Charger les données de la carte
+            d3.json('https://cdn.jsdelivr.net/npm/morocco-map/data/regions.json')
+                .then(data => {
+                    const regions = topojson.feature(data, data.objects.regions);
+                    
+                    // Dessiner les régions
+                    g.selectAll('path')
+                        .data(regions.features)
+                        .enter()
+                        .append('path')
+                        .attr('class', 'region')
+                        .attr('d', path)
+                        .attr('fill', '#8B4513')
+                        .on('mouseover', function(event, d) {
+                            d3.select(this).attr('fill', '#A0522D');
+                            tooltip.transition().duration(200).style('opacity', .9);
+                            tooltip.html(`<strong>${d.properties.name}</strong>`)
+                                .style('left', (event.pageX + 10) + 'px')
+                                .style('top', (event.pageY - 28) + 'px');
+                        })
+                        .on('mouseout', function() {
+                            d3.select(this).attr('fill', '#8B4513');
+                            tooltip.transition().duration(500).style('opacity', 0);
+                        });
+
+                    // Ajouter les marqueurs des régions
+                    addRegionMarkers();
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des données de la carte:', error);
+                    // Dessiner un rectangle de secours
+                    g.append('rect')
+                        .attr('width', width)
+                        .attr('height', height)
+                        .attr('fill', '#1e293b');
+                    
+                    g.append('text')
+                        .attr('x', width / 2)
+                        .attr('y', height / 2)
+                        .attr('text-anchor', 'middle')
+                        .attr('fill', '#cbd5e1')
+                        .text('Erreur de chargement de la carte');
+                    
+                    addRegionMarkers();
+                });
+        }
+
+        // Ajouter les marqueurs des régions
+        function addRegionMarkers() {
+            // Ajouter les marqueurs de régions
+            const regionMarkers = g.selectAll('.region-marker')
+                .data(regionsData)
+                .enter()
+                .append('circle')
+                .attr('class', 'region-marker')
+                .attr('cx', d => projection([d.lng, d.lat])[0])
+                .attr('cy', d => projection([d.lng, d.lat])[1])
+                .attr('r', 6)
+                .attr('fill', d => getColorByPopulation(d.pop_totale))
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('r', 10);
+                    tooltip.transition().duration(200).style('opacity', .9);
+                    tooltip.html(`
+                        <div><strong>${d.region_fr}</strong></div>
+                        <div>Douars: ${d.nb_douars.toLocaleString()}</div>
+                        <div>Population: ${d.pop_totale.toLocaleString()}</div>
+                        <div>Ménages: ${d.nb_menages.toLocaleString()}</div>
+                    `)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 28) + 'px');
+                })
+                .on('mouseout', function(event, d) {
+                    d3.select(this).attr('r', 6);
+                    tooltip.transition().duration(500).style('opacity', 0);
+                })
+                .on('click', function(event, d) {
+                    showRegionStatistics(d);
+                });
+
+            // Ajouter les labels des régions
+            g.selectAll('.region-label')
+                .data(regionsData)
+                .enter()
+                .append('text')
+                .attr('class', 'region-label')
+                .attr('x', d => projection([d.lng, d.lat])[0])
+                .attr('y', d => projection([d.lng, d.lat])[1] - 12)
+                .text(d => d.region_fr);
+        }
+
+        function getColorByPopulation(population) {
+            if (population > 2000000) return '#dc2626';
+            if (population > 1000000) return '#2563eb';
+            if (population > 500000) return '#10b981';
+            if (population > 100000) return '#f59e0b';
+            return '#8b5cf6';
+        }
+
+        function showRegionStatistics(regionData) {
+            // Masquer le message initial
+            document.getElementById('initial-message').classList.add('hidden');
+            
+            // Mettre à jour le titre
+            document.getElementById('region-title').textContent = `📊 ${regionData.region_fr}`;
+            
+            // Mettre à jour les statistiques
+            document.getElementById('nb-douars').textContent = regionData.nb_douars.toLocaleString();
+            document.getElementById('pop-totale').textContent = regionData.pop_totale.toLocaleString();
+            document.getElementById('nb-menages').textContent = regionData.nb_menages.toLocaleString();
+            document.getElementById('densite').textContent = Math.round(regionData.pop_totale / regionData.nb_douars).toLocaleString();
+            
+            // Mettre à jour les caractéristiques démographiques
+            const demographicsList = document.getElementById('demographics-list');
+            demographicsList.innerHTML = '';
+            
+            const demographics = [
+                `👶 0-15 ans: ${(regionData.part_0_15 * 100).toFixed(1)}%`,
+                `👨‍💼 15-59 ans: ${(regionData.part_15_59 * 100).toFixed(1)}%`,
+                `👵 60+ ans: ${(regionData.part_60_plus * 100).toFixed(1)}%`,
+                `👨 Hommes: ${regionData.nb_hommes.toLocaleString()}`,
+                `👩 Femmes: ${regionData.nb_femmes.toLocaleString()}`,
+                `⚖️ Ratio H/F: ${regionData.ratio_h_f.toFixed(2)}`,
+                `💍 Célibataires: ${(regionData.part_celib * 100).toFixed(1)}%`,
+                `💑 Mariés: ${(regionData.part_marie * 100).toFixed(1)}%`,
+                `📝 Taux enregistrement civil: ${(regionData.taux_enreg_civ * 100).toFixed(1)}%`
+            ];
+            
+            demographics.forEach(demo => {
+                const tag = document.createElement('span');
+                tag.className = 'demographic-tag';
+                tag.textContent = demo;
+                demographicsList.appendChild(tag);
+            });
+            
+            // Afficher la section des statistiques
+            document.getElementById('statistics').classList.remove('hidden');
+            
+            // Mettre à jour les graphiques
+            updateCharts(regionData);
+        }
+
+        function updateCharts(regionData) {
+            updateAgeChart(regionData);
+            updateGenderChart(regionData);
+            updateCivilChart(regionData);
+        }
+
+        function updateAgeChart(regionData) {
+            const ctx = document.getElementById('ageChart').getContext('2d');
+            
+            // Détruire le graphique précédent s'il existe
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['0-15 ans', '15-59 ans', '60+ ans'],
+                    datasets: [{
+                        label: 'Population',
+                        data: [
+                            regionData.age_0_15,
+                            regionData.age_15_59,
+                            regionData.age_60_plus
+                        ],
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56'
+                        ],
+                        borderColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Répartition par tranche d\'âge'
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Nombre de personnes'
+                            },
+                            grid: {
+                                color: '#334155'
+                            },
+                            ticks: {
+                                color: '#cbd5e1'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tranches d\'âge'
+                            },
+                            grid: {
+                                color: '#334155'
+                            },
+                            ticks: {
+                                color: '#cbd5e1'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateGenderChart(regionData) {
+            const ctx = document.getElementById('genderChart').getContext('2d');
+            
+            // Détruire le graphique précédent s'il existe
+            if (genderChart) {
+                genderChart.destroy();
+            }
+            
+            genderChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Hommes', 'Femmes'],
+                    datasets: [{
+                        data: [regionData.nb_hommes, regionData.nb_femmes],
+                        backgroundColor: ['#36A2EB', '#FF6384'],
+                        borderColor: ['#36A2EB', '#FF6384'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Répartition Hommes/Femmes'
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#cbd5e1'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateCivilChart(regionData) {
+            const ctx = document.getElementById('civilChart').getContext('2d');
+            
+            // Détruire le graphique précédent s'il existe
+            if (civilChart) {
+                civilChart.destroy();
+            }
+            
+            civilChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Célibataires', 'Mariés', 'Divorcés', 'Veufs'],
+                    datasets: [{
+                        data: [
+                            regionData.nb_15p_celib,
+                            regionData.nb_15p_marie,
+                            regionData.nb_15p_div,
+                            regionData.nb_15p_veuf
+                        ],
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
+                        ],
+                        borderColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'État civil (15+ ans)'
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#cbd5e1'
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        function resetView() {
+            svg.transition().duration(750).call(
+                zoom.transform,
+                d3.zoomIdentity
+            );
+        }
+
+        function showAllRegions() {
+            resetView();
+        }
+
+        // Redimensionner la carte quand la fenêtre change de taille
+        window.addEventListener('resize', function() {
+            const width = document.getElementById('map-container').clientWidth;
+            const height = document.getElementById('map-container').clientHeight;
+            
+            d3.select('#map')
+                .attr('width', width)
+                .attr('height', height);
+            
+            // Recalculer la projection
+            projection.translate([width / 2, height / 2]);
+            
+            // Redessiner les éléments
+            d3.selectAll('.region').attr('d', path);
+            d3.selectAll('.region-marker')
+                .attr('cx', d => projection([d.lng, d.lat])[0])
+                .attr('cy', d => projection([d.lng, d.lat])[1]);
+            d3.selectAll('.region-label')
+                .attr('x', d => projection([d.lng, d.lat])[0])
+                .attr('y', d => projection([d.lng, d.lat])[1] - 12);
+        });
+
+        // Initialiser la carte au chargement
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            
+            // Afficher les données de Casablanca par défaut
+            setTimeout(() => {
+                showRegionStatistics(regionsData[1]); // Casablanca-Settat
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
