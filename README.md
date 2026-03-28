@@ -25,4 +25,4 @@ Elle fournit des statistiques démographiques détaillées par région ou douar,
 ## Installation et lancement
 1. Cloner le repository :
    ```bash
-   git clone <lien-du-repo>
+   git clone https://github.com/AbdelouahadOudraia/carte-demographique-maroc.git
